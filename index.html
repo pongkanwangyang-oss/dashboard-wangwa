@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="th-TH">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>แดชบอร์ดสาธารณภัย</title>
+  <!-- PWA -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#c0392b" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="สาธารณภัย" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-left">
+      <div class="header-flag">
+        <img src="logo.png" alt="โลโก้เทศบาลตำบลวังหว้า" class="header-logo">
+      </div>
+      <div class="header-title">
+        <h1>ระบบแดชบอร์ดงานป้องกันและบรรเทาสาธารณภัย</h1>
+        <p id="orgName">เทศบาลตำบลวังหว้า ตำบลวังหว้า อำเภอศรีประจันต์ จังหวัดสุพรรณบุรี</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge">● LIVE</div>
+      <div class="current-time" id="currentTime"></div>
+      <button class="btn-login" id="loginBtn">👤 เจ้าหน้าที่</button>
+      <button class="btn-install" id="installBtn" onclick="installPWA()" style="display:none">📲 ติดตั้ง App</button>
+      <div class="user-info" id="userInfo" style="display:none">
+        <span class="user-name" id="userName">เจ้าหน้าที่</span>
+        <button class="btn-logout" id="logoutBtn">🚪 ออก</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label>ตั้งแต่วันที่</label>
+      <div class="date-inputs">
+        <input type="date" id="dateFrom" />
+        <span>ถึง</span>
+        <input type="date" id="dateTo" />
+      </div>
+      <div class="date-today-label" id="todayLabel"></div>
+    </div>
+    <div class="filter-group">
+      <label>ช่วงเวลาด่วน</label>
+      <div class="quick-filters">
+        <button class="quick-btn" data-range="0">วันนี้</button>
+        <button class="quick-btn active" data-range="7">7 วัน</button>
+        <button class="quick-btn" data-range="30">30 วัน</button>
+        <button class="quick-btn" data-range="90">3 เดือน</button>
+        <button class="quick-btn" data-range="365">1 ปี</button>
+      </div>
+    </div>
+    <div class="filter-group">
+      <label>ประเภทภัย</label>
+      <select id="disasterFilter">
+        <option value="all">ทั้งหมด</option>
+        <option value="accident">อุบัติเหตุ</option>
+        <option value="fire">อัคคีภัย</option>
+        <option value="storm">วาตภัย</option>
+        <option value="flood">อุทกภัย</option>
+        <option value="water">ภัยแล้ง/สนับสนุนน้ำ</option>
+        <option value="cold">ภัยหนาว</option>
+        <option value="tree">ตัดต้นไม้/เป่าท่อ</option>
+        <option value="public">บริการสาธารณะ</option>
+      </select>
+    </div>
+    <button class="btn-apply" id="applyFilter">🔍 แสดงผล</button>
+    <button class="btn-refresh" id="refreshBtn" title="รีเฟรชข้อมูล">🔄</button>
+    <button class="btn-add admin-only" id="addIncident" style="display:none">➕ เพิ่มข้อมูล</button>
+    <button class="btn-tv" id="tvMode">📺 TV Mode</button>
+    <button class="btn-pdf" id="pdfBtn">🖨️ พิมพ์รายงาน PDF</button>
+  </div>
+
+  <!-- TV Mode Exit Button (ลอยมุมจอ) -->
+  <button class="btn-tv-exit" id="tvExit">🖥️ ออกจาก TV Mode</button>
+
+  <!-- TV Mode Date Range Label (กดได้เพื่อเปิด filter) -->
+  <button class="tv-date-label" id="tvDateLabel" title="กดเพื่อกรองข้อมูล"></button>
+
+  <!-- TV Mode Filter Modal -->
+  <div class="modal-overlay" id="tvFilterModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>🔍 กรองข้อมูล (TV Mode)</h3>
+        <button class="modal-close" id="tvFilterClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>ตั้งแต่วันที่</label>
+            <input type="date" id="tvDateFrom" />
+          </div>
+          <div class="modal-field">
+            <label>ถึงวันที่</label>
+            <input type="date" id="tvDateTo" />
+          </div>
+        </div>
+        <div class="modal-quick" style="margin-bottom:1rem">
+          <button class="quick-btn" data-tv-range="0">วันนี้</button>
+          <button class="quick-btn" data-tv-range="7">7 วัน</button>
+          <button class="quick-btn" data-tv-range="30">30 วัน</button>
+          <button class="quick-btn" data-tv-range="90">3 เดือน</button>
+          <button class="quick-btn" data-tv-range="365">1 ปี</button>
+        </div>
+        <div class="modal-field">
+          <label>ประเภทภัย</label>
+          <select id="tvDisasterFilter">
+            <option value="all">ทั้งหมด</option>
+            <option value="accident">อุบัติเหตุ</option>
+            <option value="fire">อัคคีภัย</option>
+            <option value="storm">วาตภัย</option>
+            <option value="flood">อุทกภัย</option>
+            <option value="water">ภัยแล้ง/สนับสนุนน้ำ</option>
+            <option value="cold">ภัยหนาว</option>
+            <option value="tree">ตัดต้นไม้/เป่าท่อ</option>
+            <option value="public">บริการสาธารณะ</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-tv" id="tvFilterCancel">ยกเลิก</button>
+        <button class="btn-apply" id="tvFilterConfirm">🔍 แสดงผล</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PDF Date Picker Modal -->
+  <div class="modal-overlay" id="pdfModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>🖨️ เลือกข้อมูลสำหรับรายงาน PDF</h3>
+        <button class="modal-close" id="pdfModalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-row">
+          <div class="modal-field">
+            <label>ตั้งแต่วันที่</label>
+            <input type="date" id="pdfDateFrom" />
+          </div>
+          <div class="modal-field">
+            <label>ถึงวันที่</label>
+            <input type="date" id="pdfDateTo" />
+          </div>
+        </div>
+        <div class="modal-quick" style="margin-bottom:1rem">
+          <button class="quick-btn" data-pdf-range="0">วันนี้</button>
+          <button class="quick-btn" data-pdf-range="7">7 วัน</button>
+          <button class="quick-btn" data-pdf-range="30">30 วัน</button>
+          <button class="quick-btn" data-pdf-range="90">3 เดือน</button>
+          <button class="quick-btn" data-pdf-range="365">1 ปี</button>
+        </div>
+        <div class="modal-field">
+          <label>ประเภทภัย</label>
+          <select id="pdfDisasterFilter">
+            <option value="all">ทั้งหมด</option>
+            <option value="accident">อุบัติเหตุ</option>
+            <option value="fire">อัคคีภัย</option>
+            <option value="storm">วาตภัย</option>
+            <option value="flood">อุทกภัย</option>
+            <option value="water">ภัยแล้ง/สนับสนุนน้ำ</option>
+            <option value="cold">ภัยหนาว</option>
+            <option value="tree">ตัดต้นไม้/เป่าท่อ</option>
+            <option value="public">บริการสาธารณะ</option>
+          </select>
+        </div>
+        <div class="modal-field" style="margin-top:0.75rem">
+          <label>สถานะ</label>
+          <select id="pdfStatusFilter">
+            <option value="all">ทั้งหมด</option>
+            <option value="critical">⚠️ มีการรับแจ้งเหตุ</option>
+            <option value="ongoing">🔄 กำลังดำเนินการ</option>
+            <option value="resolved">✅ เสร็จสิ้น</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-tv" id="pdfModalCancel">ยกเลิก</button>
+        <button class="btn-tv" id="pdfModalDownload">⬇️ ดาวน์โหลด HTML</button>
+        <button class="btn-pdf" id="pdfModalConfirm">🖨️ พิมพ์ PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Incident Modal -->
+  <div class="modal-overlay" id="addIncidentModal">
+    <div class="modal-box modal-large">
+      <div class="modal-header">
+        <h3>➕ เพิ่มข้อมูลสถานการณ์</h3>
+        <button class="modal-close" id="addIncidentClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-field">
+            <label>วันที่เกิดเหตุ *</label>
+            <input type="date" id="incidentDate" required>
+          </div>
+          <div class="form-field">
+            <label>เวลาเกิดเหตุ *</label>
+            <div class="time-input-wrap">
+              <input type="number" id="incidentHour" min="0" max="23" placeholder="ชม." class="time-part" required>
+              <span class="time-sep">:</span>
+              <input type="number" id="incidentMinute" min="0" max="59" placeholder="นาที" class="time-part" required>
+            </div>
+          </div>
+          <div class="form-field">
+            <label>ประเภทภัย *</label>
+            <select id="incidentType" required>
+              <option value="">เลือกประเภทภัย</option>
+              <option value="accident">อุบัติเหตุ</option>
+              <option value="fire">อัคคีภัย</option>
+              <option value="storm">วาตภัย</option>
+              <option value="flood">อุทกภัย</option>
+              <option value="water">ภัยแล้ง/สนับสนุนน้ำ</option>
+              <option value="cold">ภัยหนาว</option>
+              <option value="tree">ตัดต้นไม้/เป่าท่อ</option>
+              <option value="public">บริการสาธารณะ</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>หมู่บ้าน *</label>
+            <select id="incidentSubdistrict" required>
+              <option value="">เลือกหมู่บ้าน</option>
+              <option value="หมู่ 1">หมู่ 1</option>
+              <option value="หมู่ 2">หมู่ 2</option>
+              <option value="หมู่ 3">หมู่ 3</option>
+              <option value="หมู่ 4">หมู่ 4</option>
+              <option value="หมู่ 5">หมู่ 5</option>
+              <option value="หมู่ 6">หมู่ 6</option>
+              <option value="หมู่ 7">หมู่ 7</option>
+              <option value="หมู่ 8">หมู่ 8</option>
+              <option value="หมู่ 9">หมู่ 9</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>ชื่อผู้ประสบภัย *</label>
+            <input type="text" id="victimName" placeholder="ชื่อ นามสกุล" required>
+          </div>
+          <div class="form-field">
+            <label>บ้านเลขที่ *</label>
+            <input type="text" id="houseNumber" placeholder="เช่น 123/45" required>
+          </div>
+          <div class="form-field">
+            <label>เบอร์โทรศัพท์</label>
+            <input type="tel" id="victimPhone" placeholder="เช่น 081-234-5678">
+          </div>
+          <div class="form-field">
+            <label>จำนวนผู้ประสบภัย (คน) *</label>
+            <input type="number" id="victimCount" min="1" placeholder="1" required>
+          </div>
+          <div class="form-field">
+            <label>สถานะ *</label>
+            <select id="incidentStatus" required>
+              <option value="critical">⚠️ มีการรับแจ้งเหตุ</option>
+              <option value="ongoing">🔄 กำลังดำเนินการ</option>
+              <option value="resolved">✅ เสร็จสิ้น</option>
+            </select>
+          </div>
+          <div class="form-field full-width">
+            <label>รายละเอียดเพิ่มเติม</label>
+            <textarea id="incidentDetails" rows="3" placeholder="บันทึกรายละเอียดเพิ่มเติม..."></textarea>
+          </div>
+
+          <!-- พิกัดตำแหน่งเกิดเหตุ -->
+          <div class="form-field full-width">
+            <label>📍 พิกัดตำแหน่งเกิดเหตุ</label>
+            <div class="coords-row">
+              <input type="number" id="incidentLat" placeholder="Latitude เช่น 14.5693" step="any">
+              <input type="number" id="incidentLng" placeholder="Longitude เช่น 100.1469" step="any">
+              <button type="button" class="btn-gps" id="btnGetGPS" title="ใช้ตำแหน่งปัจจุบัน (แม่นยำบนมือถือเท่านั้น)">📡 GPS</button>
+            </div>
+            <div id="gpsStatus" class="gps-status"></div>
+            <div class="gps-hint">💡 บนคอมพิวเตอร์ GPS ไม่แม่นยำ — แนะนำให้ลาก 📌 บนแผนที่ด้านล่างแทน</div>
+          </div>
+
+          <!-- Mini Map เลือกพิกัด -->
+          <div class="form-field full-width">
+            <label>🗺️ เลื่อน pin บนแผนที่เพื่อระบุตำแหน่ง</label>
+            <div id="pickMap"></div>
+            <div class="map-pick-hint">แตะหรือลาก 📌 เพื่อเปลี่ยนตำแหน่ง</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-tv" id="addIncidentCancel">ยกเลิก</button>
+        <button class="btn-add" id="addIncidentConfirm">💾 บันทึกข้อมูล</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Incident Detail Modal -->
+  <div class="modal-overlay" id="incidentDetailModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="detailTitle">รายละเอียดเหตุการณ์</h3>
+        <button class="modal-close" id="detailModalClose">✕</button>
+      </div>
+      <div class="modal-body" id="detailModalBody"></div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="modal-overlay" id="loginModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3>👤 เข้าสู่ระบบเจ้าหน้าที่</h3>
+        <button class="modal-close" id="loginModalClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-field">
+          <label>ชื่อผู้ใช้</label>
+          <input type="text" id="loginUsername" placeholder="กรอกชื่อผู้ใช้">
+        </div>
+        <div class="form-field">
+          <label>รหัสผ่าน</label>
+          <input type="password" id="loginPassword" placeholder="กรอกรหัสผ่าน">
+        </div>
+        <div class="login-hint">
+          <small>⚠️ ทดสอบ: ใช้ username "admin" และ password "1234"</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-tv" id="loginModalCancel">ยกเลิก</button>
+        <button class="btn-add" id="loginModalConfirm">🔐 เข้าสู่ระบบ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Summary Cards -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card accent-red">
+      <div class="kpi-icon">🚗</div>
+      <div class="kpi-info">
+        <div class="kpi-value" id="kpi-accident">0</div>
+        <div class="kpi-label">อุบัติเหตุ</div>
+        <div class="kpi-sub" id="kpi-accident-sub"></div>
+      </div>
+    </div>
+    <div class="kpi-card accent-orange">
+      <div class="kpi-icon">🔥</div>
+      <div class="kpi-info">
+        <div class="kpi-value" id="kpi-fire">0</div>
+        <div class="kpi-label">อัคคีภัย</div>
+        <div class="kpi-sub" id="kpi-fire-sub"></div>
+      </div>
+    </div>
+    <div class="kpi-card accent-blue">
+      <div class="kpi-icon">🌪️</div>
+      <div class="kpi-info">
+        <div class="kpi-value" id="kpi-storm">0</div>
+        <div class="kpi-label">วาตภัย</div>
+        <div class="kpi-sub" id="kpi-storm-sub"></div>
+      </div>
+    </div>
+    <div class="kpi-card accent-cyan">
+      <div class="kpi-icon">🌊</div>
+      <div class="kpi-info">
+        <div class="kpi-value" id="kpi-flood">0</div>
+        <div class="kpi-label">อุทกภัย</div>
+        <div class="kpi-sub" id="kpi-flood-sub"></div>
+      </div>
+    </div>
+    <div class="kpi-card accent-teal">
+      <div class="kpi-icon">🚛</div>
+      <div class="kpi-info">
+        <div class="kpi-value" id="kpi-water">0</div>
+        <div class="kpi-label">ภัยแล้ง/สนับสนุนน้ำ</div>
+        <div class="kpi-sub" id="kpi-water-sub"></div>
+      </div>
+    </div>
+    <div class="kpi-card accent-indigo">
+      <div class="kpi-icon">🥶</div>
+      <div class="kpi-info">
+        <div class="kpi-value" id="kpi-cold">0</div>
+        <div class="kpi-label">ภัยหนาว</div>
+        <div class="kpi-sub" id="kpi-cold-sub"></div>
+      </div>
+    </div>
+    <div class="kpi-card accent-green">
+      <div class="kpi-icon">🌳</div>
+      <div class="kpi-info">
+        <div class="kpi-value" id="kpi-tree">0</div>
+        <div class="kpi-label">ตัดต้นไม้/เป่าท่อ</div>
+        <div class="kpi-sub" id="kpi-tree-sub"></div>
+      </div>
+    </div>
+    <div class="kpi-card accent-yellow">
+      <div class="kpi-icon">🤝</div>
+      <div class="kpi-info">
+        <div class="kpi-value" id="kpi-public">0</div>
+        <div class="kpi-label">บริการสาธารณะ</div>
+        <div class="kpi-sub" id="kpi-public-sub"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Row -->
+  <div class="summary-row">
+    <div class="summary-card">
+      <span class="summary-icon">📋</span>
+      <div>
+        <div class="summary-value" id="totalIncidents">0</div>
+        <div class="summary-label">เหตุการณ์ทั้งหมด</div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <span class="summary-icon">👥</span>
+      <div>
+        <div class="summary-value" id="totalVictims">0</div>
+        <div class="summary-label">ผู้ได้รับความช่วยเหลือ</div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <span class="summary-icon">⏱️</span>
+      <div>
+        <div class="summary-value" id="avgResponse">0 นาที</div>
+        <div class="summary-label">เวลาตอบสนองเฉลี่ย</div>
+      </div>
+    </div>
+    <div class="summary-card">
+      <span class="summary-icon">✅</span>
+      <div>
+        <div class="summary-value" id="resolvedRate">0%</div>
+        <div class="summary-label">อัตราการแก้ไขสำเร็จ</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Grid -->
+  <div class="charts-grid">
+    <!-- Map -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>🗺️ แผนที่จุดเกิดเหตุ</h3>
+        <div class="map-controls">
+          <div class="map-search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="mapSearch" placeholder="ค้นหา ชื่อ / หมู่บ้าน / ประเภท...">
+          </div>
+          <button class="map-btn" id="mapFullscreen" title="ดูเต็มจอ">⛶</button>
+          <button class="map-btn" id="mapLatest" title="กลับไปที่เทศบาลตำบลวังหว้า">🏠</button>
+          <div class="map-legend" id="mapLegend"></div>
+        </div>
+      </div>
+      <div id="incidentMap"></div>
+    </div>
+
+    <!-- Donut Chart -->
+    <div class="chart-card chart-card-flex">
+      <div class="chart-header">
+        <h3>🥧 สัดส่วนประเภทภัย</h3>
+      </div>
+      <div class="chart-container chart-container-flex">
+        <canvas id="donutChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Bar Chart Monthly -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>📊 เปรียบเทียบรายเดือน</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Response Time Chart -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>⏱️ เวลาตอบสนองเฉลี่ย (นาที)</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="responseChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Trend Line Chart -->
+    <div class="chart-card chart-wide">
+      <div class="chart-header">
+        <h3>📈 แนวโน้มเหตุการณ์รายวัน</h3>
+        <div class="chart-legend" id="trendLegend"></div>
+      </div>
+      <div class="chart-container">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Water Support Chart -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <h3>🚛 การสนับสนุนรถบรรทุกน้ำ</h3>
+      </div>
+      <div class="chart-container">
+        <canvas id="waterChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Incidents Table -->
+  <div class="table-section" id="tableSection">
+    <div class="table-header">
+      <h3>📋 รายการเหตุการณ์ล่าสุด</h3>
+      <div style="display:flex;gap:0.5rem;align-items:center">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="tableSearch" placeholder="ค้นหา ชื่อ / หมู่บ้าน / ประเภท...">
+        </div>
+        <button class="btn-export" id="exportBtn">⬇️ ส่งออก CSV</button>
+      </div>
+    </div>
+    <div class="table-wrapper table-scrollable">
+      <table id="incidentTable">
+        <thead>
+          <tr>
+            <th>วันที่/เวลา</th>
+            <th>ประเภทภัย</th>
+            <th>หมู่บ้าน</th>
+            <th>ผู้ได้รับผลกระทบ</th>
+            <th>เวลาตอบสนอง</th>
+            <th>สถานะ</th>
+            <th>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody id="incidentTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <span>ข้อมูล ณ วันที่ <span id="footerDate"></span></span>
+    <span>ศูนย์ป้องกันและบรรเทาสาธารณภัย</span>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="google-sheets-simple.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('SW registered:', reg.scope))
+          .catch(err => console.log('SW error:', err));
+      });
+    }
+    // PWA Install prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('installBtn');
+      if (btn) btn.style.display = 'inline-flex';
+    });
+    window.addEventListener('appinstalled', () => {
+      const btn = document.getElementById('installBtn');
+      if (btn) btn.style.display = 'none';
+      deferredPrompt = null;
+    });
+    function installPWA() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+      }
+    }
+  </script>
+</body>
+</html>
