@@ -657,7 +657,7 @@ function formatDateInput(date) {
 
 function initMap() {
   // center ที่ตำบลวังหว้า อำเภอศรีประจันต์ จังหวัดสุพรรณบุรี
-  incidentMap = L.map('incidentMap', { zoomControl: true }).setView([14.5693, 100.1469], 14);
+  incidentMap = L.map('incidentMap', { zoomControl: true }).setView([14.641089, 100.078884], 14);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
@@ -787,7 +787,7 @@ function downloadPDF() {
 // ---- Add Incident Modal ----
 let pickMap = null;
 let pickMarker = null;
-const WANG_YANG_CENTER = [14.570544414831959, 100.14489966286149];
+const WANG_YANG_CENTER = [14.641089, 100.078884];
 
 function openAddIncidentModal() {
   // ตั้งค่าเริ่มต้นวันที่และเวลาปัจจุบัน
